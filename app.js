@@ -6,15 +6,10 @@ app.get('/', function (req, res) {
     res.send('Hello World');
 });
 
-app.get('/order/:orderId', function (req, res) {
-    res.send('Get order by Id');
-});
-
-app.get('/article/:articleId', function (req, res) {
-    res.send('Get article by Id');
-});
-
-app.route('/order')
+app.route('/order/:orderId')
+    .get(function (req, res) {
+        res.send('Get order by Id');
+    })
     .post(function (req, res) {
         res.send('Create order');
     })
@@ -25,7 +20,10 @@ app.route('/order')
         res.send('Delete order');
     });
 
-app.route('/article')
+app.route('/article/:articleId')
+    .get(function (req, res) {
+        res.send('Get article by Id');
+    })
     .post(function (req, res) {
         res.send('Create article');
     })
