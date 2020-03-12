@@ -8,9 +8,15 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "core-js": "^2.6.11",
+    "csv-parser": "^2.3.2",
+    "csv-write-stream": "^2.0.0",
+    "csv-writer": "^1.6.0",
+    "exceljs": "^3.8.1",
     "express": "^4.17.1",
     "mysql": "^2.17.1",
-    "sqlite3": "^4.1.1"
+    "sqlite3": "^4.1.1",
+    "xlsx": "^0.15.5"
   },
   "devDependencies": {},
   "description": ""

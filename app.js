@@ -6,37 +6,64 @@ app.use(express.json());
 const sqlite3 =  require('sqlite3').verbose();
 const db = new sqlite3.Database(':memory:');
 
+const csv = require('csv-parser');
+const fs = require('fs');
+
 db.serialize(function() {
+    db.run('CREATE TABLE article (article_id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL)');
+    db.run('CREATE TABLE orders (order_id INTEGER NOT NULL, amount INTEGER NOT NULL, article_id TEXT NOT NULL, FOREIGN KEY (article_id) REFERENCES article (article_id))');
 
-    db.run('CREATE TABLE lorem (info TEXT)');
-    var stmt = db.prepare('INSERT INTO lorem VALUES (?)');
-
-    for (var i = 0 ; i < 12; i++){
-        stmt.run('hi '+ i);
-    }
-
-    stmt.finalize();
-
-    db.each('SELECT rowid AS id, info FROM lorem', function(err, row){
-        console.log(row.id + ': ' + row.info);
+    //Speisekarte import
+    fs.createReadStream('speisekarte.csv')
+    .pipe(csv())
+    .on('data', (row) => {
+        db.run('INSERT INTO article VALUES(?,?,?)',[row.number, row.name, row.price]);
     });
 
-    db.run('CREATE TABLE article (article_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)');
 });
 
 app.get('/', function (req, res) {
     res.send('Hello World');
 });
 
-app.route('/order/:orderId')
+app.route('/order/:orderId?')
     .get(function (req, res) {
-        res.send('Get order by Id');
+        var articles = [];
+        if (req.params.orderId!= undefined) {
+            new Promise(function(resolve, reject) {
+                db.each('SELECT * FROM orders LEFT JOIN article ON orders.article_id = article.article_id WHERE orders.order_id = (?)', [req.params.orderId], function(err, row){
+                    if (err) {reject(err);}
+                    articles.push({
+                        "article_id": row.article_id,
+                        "name": row.name,
+                        "amount": row.amount,
+                        "price": row.price
+                    });
+                }, (err, rowCount) => {
+                        if (err){console.log("failed"+err);reject(err)}
+                        resolve('');
+
+                    }
+            )})
+            .then(() => {
+                let response = {
+                    "order_id": req.params.orderId,
+                    "articles": articles
+                };
+                res.json(response);
+                }, () => {console.log("failed");
+            });
+        } else {
+            console.log('Alle Bestellungen');
+            //print ordered orders
+        }
     })
-    .post(function (req, res) {
-        res.send('Create order');
+    .post(function (req, res) {//not neccessary
+        res.send('Not Neccessary');
     })
-    .put(function (req, res) {
-        res.send('Update order');
+    .put(function (req, res) {//input order_id, amount, article
+        db.run('INSERT INTO orders VALUES(?,?,?)',[req.params.orderId, req.body.amount, req.body.article_id]);
+        res.send('Order Updated\n');
     })
     .delete(function (req, res) {
         res.send('Delete order');
@@ -44,33 +71,64 @@ app.route('/order/:orderId')
 
 app.route('/article/:articleId?')
     .get(function (req, res) {
-        if (req.params.articleId == null) {
-            db.each('SELECT article_id, name FROM article', function(err, row){
-                console.log(row.article_id + ': ' + row.name);
+        if (!isNaN(req.params.articleId)) {
+            var article = {}
+            new Promise(function(resolve,reject){
+                db.each('SELECT * FROM article WHERE article_id = (?)',[req.params.articleId],function(err,row){
+                    article = {
+                        "article_id" : row.article_id,
+                        "name" : row.name,
+                        "price" : row.price
+                    };
+
+                }, (err,rowCount) => {
+                    if (rowCount == 0) {res.send("This article_id does not exist");reject('This article_id does not exist')};
+                    if (err){console.log("failed"+err);reject(err)};
+                    resolve('');
+                });
+            })
+            .then(() => {
+                res.json(article)
+            }, (err) => {console.log("Promise failed: "+err);
             });
+
         } else {
-            // var stmt = db.prepare('SELECT * FROM article WHERE article_id =?');
-            // var element = stmt.get(req.params.articleId);
-            // console.log('ID: ' + req.params.articleId + ' Gericht ' + element.name);
-        }
-        res.send('Get article by Id');
+            var articles = []
+            new Promise(function(resolve, reject) {
+                db.each('SELECT * FROM article', function(err, row){
+                    articles.push({
+                        "article_id": row.article_id,
+                        "name": row.name,
+                        "price": row.price
+                    })},
+                        (err, rowCount) => {
+                            if (err){console.log("failed"+err);reject(err)}
+                            resolve('');
+
+                });
+            })
+            .then(() => {
+                res.json(articles);
+            }, () => {console.log("failed");
+            });
+        };
     })
     .post(function (req, res) {
-        if (req.body.name != null) {
-            db.run('INSERT INTO article(name) VALUES (?)', req.body.name);
-
-            console.log(req.body.name);
-            res.send('Create article');
-        } else {
-            res.status(400).send('Name not defined')
-        }
-
+        res.send('post article\n');
     })
     .put(function (req, res) {
-        res.send('Update article');
+        console.log('Adding new article')
+        db.run('INSERT INTO article VALUES(?,?,?)',[req.body.number, req.body.name, req.body.price])
+
+        var csvWriter = require('csv-write-stream')
+        writer = csvWriter({sendHeaders: false})
+        writer.pipe(fs.createWriteStream('Speisekarte.csv', {flags: 'a'}))
+        writer.write({number:req.body.number, name:req.body.name, price:req.body.price})
+        writer.end
+        res.send('Added new article to Speisekarte.csv and databank\n');
     })
     .delete(function (req, res) {
-        res.send('Delete article');
+        res.send('Deleted article\n');
     });
 
 app.route('/worker')
