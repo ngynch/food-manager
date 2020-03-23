@@ -1,7 +1,7 @@
 module.exports = {
     getOrder:function(db, orderId) {
         var articles = [];
-        new Promise(function(resolve, reject) {
+        return new Promise(function(resolve, reject) {
             console.log("hi")
             sql = 'SELECT * FROM orders LEFT JOIN article ON orders.article_id = article.id WHERE orders.id = (?)'
 
@@ -17,20 +17,8 @@ module.exports = {
 
             }, (err, rowCount) => {
                 console.log(err)
-                resolve();
+                resolve(articles);
             });
         })
-        .then(() => {
-            if (articles.length == 0) {
-                return "OrderID does not exist\n";
-            } else {
-                let response = {
-                    "id": orderId,
-                    "articles": articles
-                };
-                console.log(response)
-                return response;
-            };
-        }, (err) => {console.log("Promise failed: "+err+"\n")}
-    )}
+    }
 }

@@ -27,12 +27,22 @@ app.get('/', function (req, res) {
 
 app.route('/order/:orderId?')
     .get(function (req, res) {
-        var articles = [];
         if (req.params.orderId!= undefined) {
-            test = orders.getOrder(db,req.params.orderId)
+            orders.getOrder(db,req.params.orderId)
+            .then((articles) => {
+                if (articles.length == 0) {
+                    res.send("OrderID does not exist\n");
+                } else {
+                    let response = {
+                        "id": req.params.orderId,
+                        "articles": articles
+                    };
+                    console.log(response)
+                    res.json(response);
+                }
+            }, (err) => {console.log("Promise failed: "+err+"\n")})
+
             console.log("fehler behebung")
-            console.log(test)
-            res.json(test)
 
         } else {
             console.log('Alle Bestellungen');
