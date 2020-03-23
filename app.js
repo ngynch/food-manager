@@ -5,13 +5,13 @@ app.use(express.json());
 
 const sqlite3 =  require('sqlite3').verbose();
 const db = new sqlite3.Database(':memory:');
-
+const orders = require('./orders')
 const csv = require('csv-parser');
 const fs = require('fs');
 
 db.serialize(function() {
-    db.run('CREATE TABLE article (article_id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (order_id INTEGER NOT NULL, amount INTEGER NOT NULL, article_id TEXT NOT NULL, FOREIGN KEY (article_id) REFERENCES article (article_id))');
+    db.run('CREATE TABLE article (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL)');
+    db.run('CREATE TABLE orders (id INTEGER NOT NULL, amount INTEGER NOT NULL, article_id TEXT NOT NULL, FOREIGN KEY (article_id) REFERENCES article (id))');
 
     //Speisekarte import
     fs.createReadStream('speisekarte.csv')
@@ -19,7 +19,6 @@ db.serialize(function() {
     .on('data', (row) => {
         db.run('INSERT INTO article VALUES(?,?,?)',[row.number, row.name, row.price]);
     });
-
 });
 
 app.get('/', function (req, res) {
@@ -30,29 +29,11 @@ app.route('/order/:orderId?')
     .get(function (req, res) {
         var articles = [];
         if (req.params.orderId!= undefined) {
-            new Promise(function(resolve, reject) {
-                db.each('SELECT * FROM orders LEFT JOIN article ON orders.article_id = article.article_id WHERE orders.order_id = (?)', [req.params.orderId], function(err, row){
-                    if (err) {reject(err);}
-                    articles.push({
-                        "article_id": row.article_id,
-                        "name": row.name,
-                        "amount": row.amount,
-                        "price": row.price
-                    });
-                }, (err, rowCount) => {
-                        if (err){console.log("failed"+err);reject(err)}
-                        resolve('');
+            test = orders.getOrder(db,req.params.orderId)
+            console.log("fehler behebung")
+            console.log(test)
+            res.json(test)
 
-                    }
-            )})
-            .then(() => {
-                let response = {
-                    "order_id": req.params.orderId,
-                    "articles": articles
-                };
-                res.json(response);
-                }, () => {console.log("failed");
-            });
         } else {
             console.log('Alle Bestellungen');
             //print ordered orders
@@ -61,8 +42,8 @@ app.route('/order/:orderId?')
     .post(function (req, res) {//not neccessary
         res.send('Not Neccessary');
     })
-    .put(function (req, res) {//input order_id, amount, article
-        db.run('INSERT INTO orders VALUES(?,?,?)',[req.params.orderId, req.body.amount, req.body.article_id]);
+    .put(function (req, res) {//input id, amount, article
+        db.run('INSERT INTO orders VALUES(?,?,?)',[req.params.orderId, req.body.amount, req.body.articleId]);
         res.send('Order Updated\n');
     })
     .delete(function (req, res) {
@@ -74,15 +55,15 @@ app.route('/article/:articleId?')
         if (!isNaN(req.params.articleId)) {
             var article = {}
             new Promise(function(resolve,reject){
-                db.each('SELECT * FROM article WHERE article_id = (?)',[req.params.articleId],function(err,row){
+                db.each('SELECT * FROM article WHERE id = (?)',[req.params.articleId],function(err,row){
                     article = {
-                        "article_id" : row.article_id,
+                        "id" : row.id,
                         "name" : row.name,
                         "price" : row.price
                     };
 
                 }, (err,rowCount) => {
-                    if (rowCount == 0) {res.send("This article_id does not exist");reject('This article_id does not exist')};
+                    if (rowCount == 0) {res.send("This id does not exist");reject('This id does not exist')};
                     if (err){console.log("failed"+err);reject(err)};
                     resolve('');
                 });
@@ -97,7 +78,7 @@ app.route('/article/:articleId?')
             new Promise(function(resolve, reject) {
                 db.each('SELECT * FROM article', function(err, row){
                     articles.push({
-                        "article_id": row.article_id,
+                        "id": row.id,
                         "name": row.name,
                         "price": row.price
                     })},
