@@ -10,16 +10,22 @@ const csv = require('csv-parser');
 const fs = require('fs');
 
 db.serialize(function() {
-    db.run('CREATE TABLE article (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (id INTEGER NOT NULL, amount INTEGER NOT NULL, article_id TEXT NOT NULL, FOREIGN KEY (article_id) REFERENCES article (id))');
+    db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL)');
+    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT)');
+    db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
 
     //Speisekarte import
     fs.createReadStream('speisekarte.csv')
     .pipe(csv())
     .on('data', (row) => {
-        db.run('INSERT INTO article VALUES(?,?,?)',[row.number, row.name, row.price]);
+        db.run('INSERT INTO articles(alias, name, price) VALUES(?, ?, ?)',[row.number, row.name, row.price]);
     });
 });
+
+app.use(function (req, res, next) {
+    console.log(`${req.method} ${req.originalUrl} ${Date(Date.now()).slice(0, 24)}`);
+    next();
+})
 
 app.get('/', function (req, res) {
     res.send('Hello World');
@@ -45,15 +51,71 @@ app.route('/order/:orderId?')
             console.log("fehler behebung")
 
         } else {
-            console.log('Alle Bestellungen');
-            //print ordered orders
+            new Promise(function(resolve, reject) {
+                let orders = [];
+
+                db.each('SELECT * from orders', function(err, row) {
+                    if (err) {
+                        return err.message;
+                    }
+
+                    let order_articles = [];
+
+
+                    new Promise(function(resolve, reject) {
+                        db.each('SELECT * from order_articles WHERE order_id = (?)', [row.id], function(err, row) {
+                            order_articles.push({
+                                order_article_id: row.id
+                            });
+                        }, function(err, rows) {
+                            orders.push({
+                                "id": row.id,
+                                "order_articles": order_articles
+                            });
+                            resolve();
+                        });
+                    })
+                    .then(function() {
+                    });
+
+                }, function(err, rows) {
+                    resolve(orders);
+                });
+            })
+            .then(function(orders) {
+                res.json(orders);
+            });
         }
     })
-    .post(function (req, res) {//not neccessary
-        res.send('Not Neccessary');
+    .post(function (req, res) {
+          new Promise(function(resolve, reject) {
+              db.run('INSERT INTO orders DEFAULT VALUES', [], function(err) {
+                  if (err) {
+                      return console.log(err.message);
+                  }
+
+                  resolve(this.lastID);
+              });
+          })
+          .then(function(order_id) {
+              for (article of req.body.articles) {
+                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?, ?, ?)', [article.amount, order_id, article.article_id])
+              }
+
+              res.send('Done');
+          });
+
+          /*
+          new Promise(function(resolve, reject) {
+              db.run('INSERT INTO orders VALUES(?,?)',[req.body.amount, req.body.articleId]);
+          })
+          .then(() => {
+          }, (err) => {console.log("Promise failed: "+err);
+          });
+          */
     })
     .put(function (req, res) {//input id, amount, article
-        db.run('INSERT INTO orders VALUES(?,?,?)',[req.params.orderId, req.body.amount, req.body.articleId]);
+        db.run('INSERT INTO orders VALUES(?,?,?)', [req.params.orderId, req.body.amount, req.body.articleId]);
         res.send('Order Updated\n');
     })
     .delete(function (req, res) {
@@ -65,7 +127,7 @@ app.route('/article/:articleId?')
         if (!isNaN(req.params.articleId)) {
             var article = {}
             new Promise(function(resolve,reject){
-                db.each('SELECT * FROM article WHERE id = (?)',[req.params.articleId],function(err,row){
+                db.each('SELECT * FROM articles WHERE id = (?)',[req.params.articleId], function(err, row){
                     article = {
                         "id" : row.id,
                         "name" : row.name,
@@ -86,7 +148,7 @@ app.route('/article/:articleId?')
         } else {
             var articles = []
             new Promise(function(resolve, reject) {
-                db.each('SELECT * FROM article', function(err, row){
+                db.each('SELECT * FROM articles', function(err, row){
                     articles.push({
                         "id": row.id,
                         "name": row.name,
@@ -109,7 +171,7 @@ app.route('/article/:articleId?')
     })
     .put(function (req, res) {
         console.log('Adding new article')
-        db.run('INSERT INTO article VALUES(?,?,?)',[req.body.number, req.body.name, req.body.price])
+        db.run('INSERT INTO articles VALUES(?,?,?)',[req.body.number, req.body.name, req.body.price])
 
         var csvWriter = require('csv-write-stream')
         writer = csvWriter({sendHeaders: false})
