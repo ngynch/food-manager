@@ -43,48 +43,47 @@ app.route('/order/:orderId?')
                         "id": req.params.orderId,
                         "articles": articles
                     };
-                    console.log(response)
                     res.json(response);
                 }
             }, (err) => {console.log("Promise failed: "+err+"\n")})
 
-            console.log("fehler behebung")
-
         } else {
-            new Promise(function(resolve, reject) {
-                let orders = [];
-
-                db.each('SELECT * from orders', function(err, row) {
-                    if (err) {
-                        return err.message;
-                    }
-
-                    let order_articles = [];
-
-
-                    new Promise(function(resolve, reject) {
-                        db.each('SELECT * from order_articles WHERE order_id = (?)', [row.id], function(err, row) {
-                            order_articles.push({
-                                order_article_id: row.id
-                            });
-                        }, function(err, rows) {
-                            orders.push({
+            var list_orders = [];
+            new Promise((resolve,reject) => {
+                let sql = 'SELECT * FROM orders INNER JOIN order_articles ON order_articles.order_id = orders.id INNER JOIN articles ON articles.id = order_articles.article_id';
+                db.each(sql, function(err, row) {
+                    let flag = false
+                    for(item of list_orders){
+                        if (item["id"] == row.order_id){
+                            flag = true
+                            item["articles"].push({
                                 "id": row.id,
-                                "order_articles": order_articles
-                            });
-                            resolve();
-                        });
-                    })
-                    .then(function() {
-                    });
-
-                }, function(err, rows) {
-                    resolve(orders);
-                });
+                                "alias": row.alias,
+                                "name": row.name,
+                                "amount": row.amount,
+                                "price": row.price*row.amount
+                            })
+                        }
+                    }
+                    if (!flag) {
+                        list_orders.push({
+                            "id": row.order_id,
+                            "articles": [{
+                                            "id": row.id,
+                                            "alias": row.alias,
+                                            "name": row.name,
+                                            "amount": row.amount,
+                                            "price": row.price*row.amount
+                                        }]
+                            })
+                    }
+                }, (err, rowCount) => {
+                    resolve();
+                })//simikolon or nah
             })
-            .then(function(orders) {
-                res.json(orders);
-            });
+            .then(() => {
+                res.json(list_orders)
+            },() => {})
         }
     })
     .post(function (req, res) {
@@ -99,24 +98,29 @@ app.route('/order/:orderId?')
           })
           .then(function(order_id) {
               for (article of req.body.articles) {
-                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?, ?, ?)', [article.amount, order_id, article.article_id])
+                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.article_id])
               }
-
               res.send('Done');
           });
 
-          /*
-          new Promise(function(resolve, reject) {
-              db.run('INSERT INTO orders VALUES(?,?)',[req.body.amount, req.body.articleId]);
-          })
-          .then(() => {
-          }, (err) => {console.log("Promise failed: "+err);
-          });
-          */
     })
     .put(function (req, res) {//input id, amount, article
-        db.run('INSERT INTO orders VALUES(?,?,?)', [req.params.orderId, req.body.amount, req.body.articleId]);
-        res.send('Order Updated\n');
+        let sql = 'SELECT * FROM orders'
+        let flag = false
+        db.each(sql, (err, row) => {
+            if (row.id == req.params.orderId){
+                flag = true
+            }
+        }, (err, rowCount) => {
+            if (flag){
+                for (article of req.body.articles) {
+                    db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, req.params.orderId, article.article_id]);
+                }
+                res.send('Order Updated\n');
+            } else {
+                res.send('Order ID does not exist yet\n');
+            }
+        })
     })
     .delete(function (req, res) {
         res.send('Delete order');
@@ -130,6 +134,7 @@ app.route('/article/:articleId?')
                 db.each('SELECT * FROM articles WHERE id = (?)',[req.params.articleId], function(err, row){
                     article = {
                         "id" : row.id,
+                        "alias" : row.alias,
                         "name" : row.name,
                         "price" : row.price
                     };
@@ -137,7 +142,7 @@ app.route('/article/:articleId?')
                 }, (err,rowCount) => {
                     if (rowCount == 0) {res.send("This id does not exist");reject('This id does not exist')};
                     if (err){console.log("failed"+err);reject(err)};
-                    resolve('');
+                    resolve();
                 });
             })
             .then(() => {
@@ -151,9 +156,11 @@ app.route('/article/:articleId?')
                 db.each('SELECT * FROM articles', function(err, row){
                     articles.push({
                         "id": row.id,
+                        "alias": row.alias,
                         "name": row.name,
                         "price": row.price
-                    })},
+                    })
+                },
                         (err, rowCount) => {
                             if (err){console.log("failed"+err);reject(err)}
                             resolve('');
