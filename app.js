@@ -119,7 +119,7 @@ app.route('/order/:orderId?')
                 reject();
             } else {
                 let sql2 = 'DELETE FROM order_articles WHERE order_id = (?)'
-                db.run(sql, [req.params.orderId], (err, row) => {
+                db.run(sql2, [req.params.orderId], (err, row) => {
                     if (err){
                         console.log(err)
                     }
