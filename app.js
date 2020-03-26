@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
 const port = 3000;
 app.use(express.json());
@@ -21,6 +22,8 @@ db.serialize(function() {
         db.run('INSERT INTO articles(alias, name, price) VALUES(?, ?, ?)',[row.number, row.name, row.price]);
     });
 });
+
+app.use(cors())
 
 app.use(function (req, res, next) {
     console.log(`${req.method} ${req.originalUrl} ${Date(Date.now()).slice(0, 24)}`);
@@ -97,8 +100,10 @@ app.route('/order/:orderId?')
               });
           })
           .then(function(order_id) {
+              console.log(req.body);
+
               for (article of req.body.articles) {
-                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.article_id])
+                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
               }
               res.send('Done');
           });
