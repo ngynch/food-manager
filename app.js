@@ -104,22 +104,33 @@ app.route('/order/:orderId?')
           });
 
     })
-    .put(function (req, res) {//input id, amount, article
-        let sql = 'SELECT * FROM orders'
+    .put(function (req, res) {//update order
+        let sql = 'SELECT * FROM orders WHERE order_id = (?)'
         let flag = false
-        db.each(sql, (err, row) => {
-            if (row.id == req.params.orderId){
+        new Promise((resolve,reject) => {
+            db.run(sql, [req.params.orderId], (err, row) => {
                 flag = true
-            }
-        }, (err, rowCount) => {
-            if (flag){
-                for (article of req.body.articles) {
-                    db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, req.params.orderId, article.article_id]);
-                }
-                res.send('Order Updated\n');
-            } else {
+                resolve();
+            })
+        })
+        .then(() => {
+            if (!flag){
                 res.send('Order ID does not exist yet\n');
+                reject();
+            } else {
+                let sql2 = 'DELETE FROM order_articles WHERE order_id = (?)'
+                db.run(sql, [req.params.orderId], (err, row) => {
+                    if (err){
+                        console.log(err)
+                    }
+                })
             }
+        })
+        .then(() => {
+            for (article of req.body.articles) {
+                db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, req.params.orderId, article.article_id]);
+            }
+            res.send('Order Updated\n');
         })
     })
     .delete(function (req, res) {
