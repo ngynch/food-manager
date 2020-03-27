@@ -12,7 +12,7 @@ const fs = require('fs');
 
 db.serialize(function() {
     db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT)');
+    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT)');
     db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
 
     //Speisekarte import
@@ -91,7 +91,9 @@ app.route('/order/:orderId?')
     })
     .post(function (req, res) {
           new Promise(function(resolve, reject) {
-              db.run('INSERT INTO orders DEFAULT VALUES', [], function(err) {
+              let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone) VALUES(?,?,?,?,?,?,?,?)'
+              let time = Date(Date.now()).slice(0, 24)
+              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.city, req.body.telephone], function(err) {
                   if (err) {
                       return console.log(err.message);
                   }
@@ -100,8 +102,6 @@ app.route('/order/:orderId?')
               });
           })
           .then(function(order_id) {
-              console.log(req.body);
-
               for (article of req.body.articles) {
                   db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
               }
