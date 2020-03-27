@@ -67,8 +67,10 @@ app.route('/order/:orderId?')
         } else {
             var list_orders = [];
             new Promise((resolve,reject) => {
-                let sql = 'SELECT *,orders.name as ordername,articles.name as articlename FROM orders INNER JOIN order_articles ON order_articles.order_id = orders.id INNER JOIN articles ON articles.id = order_articles.article_id';
-                db.each(sql, function(err, row) {
+                let sql = 'SELECT *,orders.name as ordername,articles.name as articlename FROM orders ';
+                sql +=  'INNER JOIN order_articles ON order_articles.order_id = orders.id ';
+                sql += 'INNER JOIN articles ON articles.id = order_articles.article_id';
+                db.each(sql, (err, row) => {
                     let flag = false
                     for(item of list_orders){
                         if (item["id"] == row.order_id){
@@ -112,18 +114,14 @@ app.route('/order/:orderId?')
         }
     })
     .post(function (req, res) {
-          new Promise(function(resolve, reject) {
+          new Promise((resolve, reject) => {
               let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone) VALUES(?,?,?,?,?,?,?,?)'
               let time = Date(Date.now()).slice(0, 24)
               db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone], function(err) {
-                  if (err) {
-                      return console.log(err.message);
-                  }
-
                   resolve(this.lastID);
               });
           })
-          .then(function(order_id) {
+          .then((order_id) => {
               for (article of req.body.articles) {
                   db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
               }
@@ -131,7 +129,7 @@ app.route('/order/:orderId?')
           });
 
     })
-    .put(function (req, res) {//update order
+    .put(function (req, res) {
         let sql = 'SELECT * FROM orders WHERE order_id = (?)'
         let flag = false
         new Promise((resolve,reject) => {
@@ -148,7 +146,7 @@ app.route('/order/:orderId?')
                 let sql2 = 'DELETE FROM order_articles WHERE order_id = (?)'
                 db.run(sql2, [req.params.orderId], (err, row) => {
                     if (err){
-                        console.log(err)
+                        console.log("Order could not be deleted: " + err)
                     }
                 })
             }
@@ -161,15 +159,15 @@ app.route('/order/:orderId?')
         })
     })
     .delete(function (req, res) {
-        res.send('Delete order');
+        res.send('Function not implemented\n');
     });
 
 app.route('/article/:articleId?')
     .get(function (req, res) {
         if (!isNaN(req.params.articleId)) {
             var article = {}
-            new Promise(function(resolve,reject){
-                db.each('SELECT * FROM articles WHERE id = (?)',[req.params.articleId], function(err, row){
+            new Promise((resolve,reject) => {
+                db.each('SELECT * FROM articles WHERE id = (?)',req.params.articleId, (err, row) => {
                     article = {
                         "id" : row.id,
                         "alias" : row.alias,
@@ -179,19 +177,16 @@ app.route('/article/:articleId?')
 
                 }, (err,rowCount) => {
                     if (rowCount == 0) {res.send("This id does not exist");reject('This id does not exist')};
-                    if (err){console.log("failed"+err);reject(err)};
                     resolve();
                 });
             })
             .then(() => {
                 res.json(article)
-            }, (err) => {console.log("Promise failed: "+err);
             });
-
         } else {
             var articles = []
-            new Promise(function(resolve, reject) {
-                db.each('SELECT * FROM articles', function(err, row){
+            new Promise((resolve, reject) => {
+                db.each('SELECT * FROM articles', (err, row) => {
                     articles.push({
                         "id": row.id,
                         "alias": row.alias,
@@ -200,14 +195,12 @@ app.route('/article/:articleId?')
                     })
                 },
                         (err, rowCount) => {
-                            if (err){console.log("failed"+err);reject(err)}
-                            resolve('');
+                            resolve();
 
                 });
             })
             .then(() => {
                 res.json(articles);
-            }, () => {console.log("failed");
             });
         };
     })
@@ -215,34 +208,26 @@ app.route('/article/:articleId?')
         res.send('post article\n');
     })
     .put(function (req, res) {
-        console.log('Adding new article')
-        db.run('INSERT INTO articles VALUES(?,?,?)',[req.body.number, req.body.name, req.body.price])
-
-        var csvWriter = require('csv-write-stream')
-        writer = csvWriter({sendHeaders: false})
-        writer.pipe(fs.createWriteStream('Speisekarte.csv', {flags: 'a'}))
-        writer.write({number:req.body.number, name:req.body.name, price:req.body.price})
-        writer.end
-        res.send('Added new article to Speisekarte.csv and databank\n');
+        res.send('Function not implemented\n');
     })
     .delete(function (req, res) {
-        res.send('Deleted article\n');
+        res.send('Function not implemented\n');
     });
 
 app.route('/worker')
     .get(function (req, res) {
-        res.send('Get current active order');
+        res.send('Function not implemented\n');
     })
     .put(function (req, res) {
-        res.send('Next order');
+        res.send('Function not implemented\n');
     });
 
 app.route('/manager')
     .get(function (req, res) {
-        res.send('Get all active orders');
+        res.send('Function not implemented\n');
     })
     .put(function (req, res) {
-        res.send('Prioritize take away orders');
+        res.send('Function not implemented\n');
     });
 
 app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));
