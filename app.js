@@ -67,7 +67,7 @@ app.route('/order/:orderId?')
         } else {
             var list_orders = [];
             new Promise((resolve,reject) => {
-                let sql = 'SELECT * FROM orders INNER JOIN order_articles ON order_articles.order_id = orders.id INNER JOIN articles ON articles.id = order_articles.article_id';
+                let sql = 'SELECT *,orders.name as ordername,articles.name as articlename FROM orders INNER JOIN order_articles ON order_articles.order_id = orders.id INNER JOIN articles ON articles.id = order_articles.article_id';
                 db.each(sql, function(err, row) {
                     let flag = false
                     for(item of list_orders){
@@ -76,7 +76,7 @@ app.route('/order/:orderId?')
                             item["articles"].push({
                                 "id": row.id,
                                 "alias": row.alias,
-                                "name": row.name,
+                                "name": row.articlename,
                                 "amount": row.amount,
                                 "price": row.price*row.amount
                             })
@@ -88,7 +88,7 @@ app.route('/order/:orderId?')
                             "type": row.type,
                             "created": row.created,
                             "modified": row.modified,
-                            "name": row.name,
+                            "name": row.ordername,
                             "street": row.street,
                             "zipcode": row.zipcode,
                             "city": row.city,
@@ -96,7 +96,7 @@ app.route('/order/:orderId?')
                             "articles": [{
                                             "id": row.id,
                                             "alias": row.alias,
-                                            "name": row.name,
+                                            "name": row.articlename,
                                             "amount": row.amount,
                                             "price": row.price*row.amount
                                         }]
