@@ -7,7 +7,7 @@ module.exports = {
             db.each(sql, [orderId], function(err, row){
                 if (err) {console.log("hiereerrr");reject(err);}
                 articles.push({
-                    "article_id": row.article_id,
+                    "id": row.article_id,
                     "alias": row.alias,
                     "name": row.name,
                     "amount": row.amount,
