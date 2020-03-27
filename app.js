@@ -40,7 +40,7 @@ app.route('/order/:orderId?')
             orders.getOrder(db,req.params.orderId)
             .then((articles) => {
                 if (articles.length == 0) {
-                    res.send("OrderID does not exist\n");
+                    res.status(400).send("OrderID does not exist\n");
                 } else {
                     return new Promise((resolve, reject) => {
                         db.get('SELECT * from orders WHERE orders.id = (?)', req.params.orderId, (err, row) => {
@@ -125,7 +125,7 @@ app.route('/order/:orderId?')
               for (article of req.body.articles) {
                   db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
               }
-              res.send('Order Created\n');
+              res.status(201).send('Order Created\n');
           });
 
     })
@@ -146,7 +146,8 @@ app.route('/order/:orderId?')
                 let sql2 = 'DELETE FROM order_articles WHERE order_id = (?)'
                 db.run(sql2, [req.params.orderId], (err, row) => {
                     if (err){
-                        console.log("Order could not be deleted: " + err)
+                        res.status(400).send("Order could not be deleted");
+                        console.log("Error, Order could not be deleted: " + err);
                     }
                 })
             }
@@ -174,14 +175,15 @@ app.route('/article/:articleId?')
                         "name" : row.name,
                         "price" : row.price
                     };
-
                 }, (err,rowCount) => {
-                    if (rowCount == 0) {res.send("This id does not exist");reject('This id does not exist')};
+                    if (rowCount == 0) {reject();}
                     resolve();
                 });
             })
             .then(() => {
                 res.json(article)
+            }, () => {
+                res.status(400).send("This Article ID does not exist\n");
             });
         } else {
             var articles = []
@@ -193,10 +195,8 @@ app.route('/article/:articleId?')
                         "name": row.name,
                         "price": row.price
                     })
-                },
-                        (err, rowCount) => {
-                            resolve();
-
+                }, (err, rowCount) => {
+                    resolve();
                 });
             })
             .then(() => {
