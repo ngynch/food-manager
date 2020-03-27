@@ -42,14 +42,28 @@ app.route('/order/:orderId?')
                 if (articles.length == 0) {
                     res.send("OrderID does not exist\n");
                 } else {
-                    let response = {
-                        "id": req.params.orderId,
-                        "articles": articles
-                    };
-                    res.json(response);
+                    return new Promise((resolve, reject) => {
+                        db.get('SELECT * from orders WHERE orders.id = (?)', req.params.orderId, (err, row) => {
+                            let response = {
+                                    "id": row.id,
+                                    "type": row.type,
+                                    "created": row.created,
+                                    "modified": row.modified,
+                                    "name": row.name,
+                                    "street": row.street,
+                                    "zipcode": row.zipcode,
+                                    "city": row.city,
+                                    "telephone": row.telephone,
+                                    "articles": articles
+                                };
+                            resolve(response);
+                        })
+                    });
                 }
-            }, (err) => {console.log("Promise failed: "+err+"\n")})
-
+            })
+            .then((response) => {
+                res.json(response)
+            })
         } else {
             var list_orders = [];
             new Promise((resolve,reject) => {
@@ -71,6 +85,14 @@ app.route('/order/:orderId?')
                     if (!flag) {
                         list_orders.push({
                             "id": row.order_id,
+                            "type": row.type,
+                            "created": row.created,
+                            "modified": row.modified,
+                            "name": row.name,
+                            "street": row.street,
+                            "zipcode": row.zipcode,
+                            "city": row.city,
+                            "telephone": row.telephone,
                             "articles": [{
                                             "id": row.id,
                                             "alias": row.alias,
@@ -82,18 +104,18 @@ app.route('/order/:orderId?')
                     }
                 }, (err, rowCount) => {
                     resolve();
-                })//simikolon or nah
+                })
             })
             .then(() => {
                 res.json(list_orders)
-            },() => {})
+            });
         }
     })
     .post(function (req, res) {
           new Promise(function(resolve, reject) {
               let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone) VALUES(?,?,?,?,?,?,?,?)'
               let time = Date(Date.now()).slice(0, 24)
-              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.city, req.body.telephone], function(err) {
+              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone], function(err) {
                   if (err) {
                       return console.log(err.message);
                   }
@@ -105,7 +127,7 @@ app.route('/order/:orderId?')
               for (article of req.body.articles) {
                   db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
               }
-              res.send('Done');
+              res.send('Order Created\n');
           });
 
     })
