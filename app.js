@@ -226,25 +226,29 @@ app.route('/worker/:workerId?')
                 return res.send(workerArticles);
         })
     })
-    .put(function (req, res) {/*{id:1}<=order_articles id*/
-        db.serialize(() => {
-            let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
-            sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
-            let newStatus = 400;
-            db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
-                if (row == undefined) {return res.status(400).send("Order_article ID not found for this worker\n")}
-                if (row.article_status == "IN_PROGRESS"){
-                    newStatus = req.params.workerId;
-                } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){//status derzeit auf 1 und 2 hat fertig gearbeitet
-                    newStatus = 12;
-                }
-                if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
-                let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
-                db.run(sql2, [newStatus, req.body.id], (err) => {
-                    return res.send("Orders Updated\n");
-                });
-            });
-        })
+    .put(async function (req, res) {
+        let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
+        sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
+        let newStatus = 400;
+        let flag = false;
+        console.log("before first db")
+        await db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
+            if (row == undefined) {console.log("in undefined");flag = true;return;}
+            if (row.article_status == "IN_PROGRESS"){
+                newStatus = req.params.workerId;
+            } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){//status derzeit auf 1 und 2 hat fertig gearbeitet
+                newStatus = 12;
+            }
+        });
+        await console.log("before if "+flag)
+        if (flag) {return res.status(400).send("Order_article ID does not exist\n")}
+        if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
+        console.log("after if")
+        let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
+        await db.run(sql2, [newStatus, req.body.id], (err) => {
+            return res.send("Orders Updated\n");
+        });
+
     });
 
 app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));
