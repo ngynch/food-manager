@@ -239,12 +239,12 @@ app.route('/worker/:workerId?')
                 orderId = row.order_id;
                 if (row.article_status == "IN_PROGRESS"){
                     if (row.worker == req.params.workerId){
-                        newStatus = "COMPLETED"
+                        newStatus = "COMPLETE"
                     } else {
                         newStatus = req.params.workerId;
                     }
                 } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){
-                    newStatus = "COMPLETED";
+                    newStatus = "COMPLETE";
                 }
                 if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
 
@@ -253,13 +253,13 @@ app.route('/worker/:workerId?')
                     let flag = true;
                     let sql3 = 'SELECT * FROM order_articles WHERE order_id = (?)'
                     db.each(sql3, orderId, (err, row) => {
-                        if (row.article_status != "COMPLETED") {
+                        if (row.article_status != "COMPLETE") {
                             flag = false;
                             return;
                         }
                     }, (err, rowCount) => {
                         if (flag){
-                            let sql4 = 'UPDATE orders SET status = "COMPLETED" WHERE id = (?)'
+                            let sql4 = 'UPDATE orders SET status = "COMPLETE" WHERE id = (?)'
                             db.run(sql4, orderId, (err) => {
                                 return res.send("Order Updated and Completed\n")
                             })
