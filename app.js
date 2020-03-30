@@ -11,15 +11,15 @@ const csv = require('csv-parser');
 const fs = require('fs');
 
 db.serialize(() => {
-    db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT)');
-    db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
+    db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, worker INTEGER NOT NULL)');
+    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT NOT NULL)');
+    db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, article_status TEXT NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
 
     //Speisekarte import
     fs.createReadStream('speisekarte.csv')
     .pipe(csv())
     .on('data', (row) => {
-        db.run('INSERT INTO articles(alias, name, price) VALUES(?, ?, ?)',[row.number, row.name, row.price]);
+        db.run('INSERT INTO articles(alias, name, price, worker) VALUES(?,?,?,?)',[row.number, row.name, row.price, row.worker]);
     });
 });
 
@@ -74,6 +74,7 @@ app.route('/order/:orderId?')
                             flag = true
                             item["articles"].push({
                                 "id": row.id,
+                                "status": row.article_status,
                                 "alias": row.alias,
                                 "name": row.articlename,
                                 "amount": row.amount,
@@ -95,6 +96,7 @@ app.route('/order/:orderId?')
                             "telephone": row.telephone,
                             "articles": [{
                                             "id": row.id,
+                                            "status": row.article_status,
                                             "alias": row.alias,
                                             "name": row.articlename,
                                             "amount": row.amount,
@@ -115,13 +117,13 @@ app.route('/order/:orderId?')
           new Promise((resolve, reject) => {
               let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone, status) VALUES(?,?,?,?,?,?,?,?,?)'
               let time = Date(Date.now()).slice(0, 24)
-              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "To Do"], function(err) {
+              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "TO_DO"], function(err) {
                   resolve(this.lastID);
               });
           })
           .then((order_id) => {
               for (article of req.body.articles) {
-                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id]);
+                  db.run('INSERT INTO order_articles(amount, order_id, article_id, article_status) VALUES(?,?,?,?)', [article.amount, order_id, article.id, "TO_DO"]);
               }
               return res.send('Order Created\n');
           })
@@ -146,8 +148,8 @@ app.route('/order/:orderId?')
                     let sql3 = 'DELETE FROM order_articles WHERE order_id = (?)';
                     db.run(sql3, req.params.orderId);
                     for (article of req.body.articles) {
-                        let sql4 = 'INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)';
-                        db.run(sql4, [article.amount, req.params.orderId, article.id]);
+                        let sql4 = 'INSERT INTO order_articles(amount, order_id, article_id, article_status) VALUES(?,?,?,?)';
+                        db.run(sql4, [article.amount, req.params.orderId, article.id, req.body.status]);
                     }
                     return res.send('Order Updated\n');
                 })
@@ -200,20 +202,49 @@ app.route('/article/:articleId?')
         };
     });
 
-app.route('/worker')
-    .get(function (req, res) {
-        return res.send('Function not implemented\n');
+app.route('/worker/:workerId?')
+    .get(function (req, res) {/*IN_PROGRESS=BOTH WORKERS WORKING, 1 = Worker One Done, 2 = Worker Two Done*/
+        if (req.params.workerId != 1 && req.params.workerId != 2) {
+            return res.status(400).send("Worker ID does not exist");
+        }
+        let articles = [];
+        let sql = 'SELECT *,order_articles.id as id FROM order_articles ';
+        sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
+        sql += 'WHERE (order_articles.article_status = "IN_PROGRESS" OR order_articles.article_status = (?)) ';
+        sql += 'AND (articles.worker = (?) OR articles.worker = "12")'
+        let workerArticles = [];
+        db.each(sql,[-req.params.workerId+3, req.params.workerId], (err, row) => {
+            workerArticles.push({
+                "id": row.id,
+                "status": row.article_status,
+                "alias": row.alias,
+                "name": row.name,
+                "Order ID": row.order_id
+            });
+        }, (err, rowCount) => {
+            if (workerArticles.length == 0) {return res.send("No Order in progress for this worker\n");}
+                return res.send(workerArticles);
+        })
     })
-    .put(function (req, res) {
-        return res.send('Function not implemented\n');
-    });
-
-app.route('/manager')
-    .get(function (req, res) {
-        return res.send('Function not implemented\n');
-    })
-    .put(function (req, res) {
-        return res.send('Function not implemented\n');
+    .put(function (req, res) {/*{id:1}<=order_articles id*/
+        db.serialize(() => {
+            let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
+            sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
+            let newStatus = 400;
+            db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
+                if (row == undefined) {return res.status(400).send("Order_article ID not found for this worker\n")}
+                if (row.article_status == "IN_PROGRESS"){
+                    newStatus = req.params.workerId;
+                } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){//status derzeit auf 1 und 2 hat fertig gearbeitet
+                    newStatus = 12;
+                }
+                if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
+                let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
+                db.run(sql2, [newStatus, req.body.id], (err) => {
+                    return res.send("Orders Updated\n");
+                });
+            });
+        })
     });
 
 app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));
