@@ -145,8 +145,10 @@ app.route('/order/:orderId?')
                 db.serialize(() => {
                     let sql2 = 'UPDATE orders SET status = (?), modified = (?) WHERE id = (?)';
                     db.run(sql2,[req.body.status, Date(Date.now()).slice(0, 24), req.params.orderId]);
+
                     let sql3 = 'DELETE FROM order_articles WHERE order_id = (?)';
                     db.run(sql3, req.params.orderId);
+
                     for (article of req.body.articles) {
                         let sql4 = 'INSERT INTO order_articles(amount, order_id, article_id, article_status) VALUES(?,?,?,?)';
                         db.run(sql4, [article.amount, req.params.orderId, article.id, req.body.status]);
@@ -226,22 +228,45 @@ app.route('/worker/:workerId?')
                 return res.send(workerArticles);
         })
     })
-    .put(function (req, res) {/*{id:1}<=order_articles id*/
+    .put(function (req, res) {/*fix nested functions*/
         db.serialize(() => {
             let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
             sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
-            let newStatus = 400;
             db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
+                let orderId;
+                let newStatus = 400;
                 if (row == undefined) {return res.status(400).send("Order_article ID not found for this worker\n")}
+                orderId = row.order_id;
                 if (row.article_status == "IN_PROGRESS"){
-                    newStatus = req.params.workerId;
-                } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){//status derzeit auf 1 und 2 hat fertig gearbeitet
-                    newStatus = 12;
+                    if (row.worker == req.params.workerId){
+                        newStatus = "COMPLETED"
+                    } else {
+                        newStatus = req.params.workerId;
+                    }
+                } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){
+                    newStatus = "COMPLETED";
                 }
                 if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
+
                 let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
                 db.run(sql2, [newStatus, req.body.id], (err) => {
-                    return res.send("Orders Updated\n");
+                    let flag = true;
+                    let sql3 = 'SELECT * FROM order_articles WHERE order_id = (?)'
+                    db.each(sql3, orderId, (err, row) => {
+                        if (row.article_status != "COMPLETED") {
+                            flag = false;
+                            return;
+                        }
+                    }, (err, rowCount) => {
+                        if (flag){
+                            let sql4 = 'UPDATE orders SET status = "COMPLETED" WHERE id = (?)'
+                            db.run(sql4, orderId, (err) => {
+                                return res.send("Order Updated and Completed\n")
+                            })
+                        } else {
+                            return res.send("Order Updated\n")
+                        }
+                    })
                 });
             });
         })
