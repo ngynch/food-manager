@@ -10,9 +10,9 @@ const orders = require('./orders')
 const csv = require('csv-parser');
 const fs = require('fs');
 
-db.serialize(function() {
+db.serialize(() => {
     db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT)');
+    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT)');
     db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
 
     //Speisekarte import
@@ -31,7 +31,7 @@ app.use(function (req, res, next) {
 })
 
 app.get('/', function (req, res) {
-    res.send('Hello World');
+    return res.send('Hello World');
 });
 
 app.route('/order/:orderId?')
@@ -40,12 +40,12 @@ app.route('/order/:orderId?')
             orders.getOrder(db,req.params.orderId)
             .then((articles) => {
                 if (articles.length == 0) {
-                    res.status(400).send("OrderID does not exist\n");
+                    return res.status(400).send("OrderID does not exist\n");
                 } else {
-                    return new Promise((resolve, reject) => {
                         db.get('SELECT * from orders WHERE orders.id = (?)', req.params.orderId, (err, row) => {
                             let response = {
                                     "id": row.id,
+                                    "status":row.status,
                                     "type": row.type,
                                     "created": row.created,
                                     "modified": row.modified,
@@ -56,14 +56,11 @@ app.route('/order/:orderId?')
                                     "telephone": row.telephone,
                                     "articles": articles
                                 };
-                            resolve(response);
-                        })
-                    });
+
+                            return res.json(response)
+                        });
                 }
-            })
-            .then((response) => {
-                res.json(response)
-            })
+            });
         } else {
             var list_orders = [];
             new Promise((resolve,reject) => {
@@ -87,6 +84,7 @@ app.route('/order/:orderId?')
                     if (!flag) {
                         list_orders.push({
                             "id": row.order_id,
+                            "status":row.status,
                             "type": row.type,
                             "created": row.created,
                             "modified": row.modified,
@@ -109,58 +107,55 @@ app.route('/order/:orderId?')
                 })
             })
             .then(() => {
-                res.json(list_orders)
+                return res.json(list_orders)
             });
         }
     })
     .post(function (req, res) {
           new Promise((resolve, reject) => {
-              let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone) VALUES(?,?,?,?,?,?,?,?)'
+              let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone, status) VALUES(?,?,?,?,?,?,?,?,?)'
               let time = Date(Date.now()).slice(0, 24)
-              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone], function(err) {
+              db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "To Do"], function(err) {
                   resolve(this.lastID);
               });
           })
           .then((order_id) => {
               for (article of req.body.articles) {
-                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id])
+                  db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, order_id, article.id]);
               }
-              res.status(201).send('Order Created\n');
-          });
+              return res.send('Order Created\n');
+          })
 
     })
     .put(function (req, res) {
-        let sql = 'SELECT * FROM orders WHERE order_id = (?)'
+        let sql = 'SELECT * FROM orders WHERE id = (?)'
         let flag = false
         new Promise((resolve,reject) => {
-            db.run(sql, [req.params.orderId], (err, row) => {
-                flag = true
+            db.get(sql, [req.params.orderId], (err, row) => {
+                flag = row != undefined ? true : false;
                 resolve();
             })
         })
         .then(() => {
             if (!flag){
-                res.send('Order ID does not exist yet\n');
-                reject();
+                return res.status(400).send('Order ID does not exist yet\n');
             } else {
-                let sql2 = 'DELETE FROM order_articles WHERE order_id = (?)'
-                db.run(sql2, [req.params.orderId], (err, row) => {
-                    if (err){
-                        res.status(400).send("Order could not be deleted");
-                        console.log("Error, Order could not be deleted: " + err);
+                db.serialize(() => {
+                    let sql2 = 'UPDATE orders SET status = (?), modified = (?) WHERE id = (?)';
+                    db.run(sql2,[req.body.status, Date(Date.now()).slice(0, 24), req.params.orderId]);
+                    let sql3 = 'DELETE FROM order_articles WHERE order_id = (?)';
+                    db.run(sql3, req.params.orderId);
+                    for (article of req.body.articles) {
+                        let sql4 = 'INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)';
+                        db.run(sql4, [article.amount, req.params.orderId, article.id]);
                     }
+                    return res.send('Order Updated\n');
                 })
             }
         })
-        .then(() => {
-            for (article of req.body.articles) {
-                db.run('INSERT INTO order_articles(amount, order_id, article_id) VALUES(?,?,?)', [article.amount, req.params.orderId, article.article_id]);
-            }
-            res.send('Order Updated\n');
-        })
     })
     .delete(function (req, res) {
-        res.send('Function not implemented\n');
+        return res.send('Function not implemented\n');
     });
 
 app.route('/article/:articleId?')
@@ -181,9 +176,9 @@ app.route('/article/:articleId?')
                 });
             })
             .then(() => {
-                res.json(article)
+                return res.json(article)
             }, () => {
-                res.status(400).send("This Article ID does not exist\n");
+                return res.status(400).send("This Article ID does not exist\n");
             });
         } else {
             var articles = []
@@ -200,34 +195,25 @@ app.route('/article/:articleId?')
                 });
             })
             .then(() => {
-                res.json(articles);
+                return res.json(articles);
             });
         };
-    })
-    .post(function (req, res) {
-        res.send('post article\n');
-    })
-    .put(function (req, res) {
-        res.send('Function not implemented\n');
-    })
-    .delete(function (req, res) {
-        res.send('Function not implemented\n');
     });
 
 app.route('/worker')
     .get(function (req, res) {
-        res.send('Function not implemented\n');
+        return res.send('Function not implemented\n');
     })
     .put(function (req, res) {
-        res.send('Function not implemented\n');
+        return res.send('Function not implemented\n');
     });
 
 app.route('/manager')
     .get(function (req, res) {
-        res.send('Function not implemented\n');
+        return res.send('Function not implemented\n');
     })
     .put(function (req, res) {
-        res.send('Function not implemented\n');
+        return res.send('Function not implemented\n');
     });
 
 app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));
