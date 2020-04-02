@@ -207,13 +207,15 @@ app.route('/article/:articleId?')
 app.route('/worker/:workerId?')
     .get(function (req, res) {/*IN_PROGRESS=BOTH WORKERS WORKING, 1 = Worker One Done, 2 = Worker Two Done*/
         if (req.params.workerId != 1 && req.params.workerId != 2) {
-            return res.status(400).send("Worker ID does not exist");
+            return res.status(400).json({"message":"Worker ID does not exist"});
         }
         let articles = [];
         let sql = 'SELECT *,order_articles.id as id FROM order_articles ';
+        sql += 'INNER JOIN orders ON orders.id = order_articles.order_id '
         sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
         sql += 'WHERE (order_articles.article_status = "IN_PROGRESS" OR order_articles.article_status = (?)) ';
         sql += 'AND (articles.worker = (?) OR articles.worker = "12")'
+
         let workerArticles = [];
         db.each(sql,[-req.params.workerId+3, req.params.workerId], (err, row) => {
             workerArticles.push({
@@ -221,10 +223,11 @@ app.route('/worker/:workerId?')
                 "status": row.article_status,
                 "alias": row.alias,
                 "name": row.name,
-                "Order ID": row.order_id
+                "created": row.created,
+                "modified": row.modified
             });
         }, (err, rowCount) => {
-            if (workerArticles.length == 0) {return res.send("No Order in progress for this worker\n");}
+            if (workerArticles.length == 0) {return res.send({"message":"No Order in progress for this worker"});}
                 return res.send(workerArticles);
         })
     })
@@ -235,7 +238,7 @@ app.route('/worker/:workerId?')
             db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
                 let orderId;
                 let newStatus = 400;
-                if (row == undefined) {return res.status(400).send("Order_article ID not found for this worker\n")}
+                if (row == undefined) {return res.status(400).json({"message": "Order_article ID not found for this worker"})}
                 orderId = row.order_id;
                 if (row.article_status == "IN_PROGRESS"){
                     if (row.worker == req.params.workerId){
@@ -246,7 +249,7 @@ app.route('/worker/:workerId?')
                 } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){
                     newStatus = "COMPLETE";
                 }
-                if (newStatus==400) {return res.status(400).send("Order_article ID already completed for this worker\n");}
+                if (newStatus==400) {return res.status(400).json({"message": "Order_article ID already completed for this worker"});}
 
                 let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
                 db.run(sql2, [newStatus, req.body.id], (err) => {
@@ -261,10 +264,10 @@ app.route('/worker/:workerId?')
                         if (flag){
                             let sql4 = 'UPDATE orders SET status = "COMPLETE" WHERE id = (?)'
                             db.run(sql4, orderId, (err) => {
-                                return res.send("Order Updated and Completed\n")
+                                return res.json({"message": "Order Updated and Completed"})
                             })
                         } else {
-                            return res.send("Order Updated\n")
+                            return res.json({"message": "Order Updated"});
                         }
                     })
                 });
