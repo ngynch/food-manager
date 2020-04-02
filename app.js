@@ -31,7 +31,7 @@ app.use(function (req, res, next) {
 })
 
 app.get('/', function (req, res) {
-    return res.send('Hello World');
+    return res.json("Hello World");
 });
 
 app.route('/order/:orderId?')
@@ -40,7 +40,7 @@ app.route('/order/:orderId?')
             orders.getOrder(db,req.params.orderId)
             .then((articles) => {
                 if (articles.length == 0) {
-                    return res.status(400).send("OrderID does not exist\n");
+                    return res.status(400).json({"message":"OrderID does not exist"});
                 } else {
                         db.get('SELECT * from orders WHERE orders.id = (?)', req.params.orderId, (err, row) => {
                             let response = {
@@ -64,9 +64,11 @@ app.route('/order/:orderId?')
         } else {
             var list_orders = [];
             new Promise((resolve,reject) => {
+
                 let sql = 'SELECT *,orders.name as ordername,articles.name as articlename FROM orders ';
                 sql +=  'INNER JOIN order_articles ON order_articles.order_id = orders.id ';
                 sql += 'INNER JOIN articles ON articles.id = order_articles.article_id';
+                
                 db.each(sql, (err, row) => {
                     let flag = false
                     for(item of list_orders){
@@ -125,13 +127,15 @@ app.route('/order/:orderId?')
               for (article of req.body.articles) {
                   db.run('INSERT INTO order_articles(amount, order_id, article_id, article_status) VALUES(?,?,?,?)', [article.amount, order_id, article.id, "TO_DO"]);
               }
-              return res.send('Order Created\n');
+              return res.json({"message":"Order Created"});
           })
 
     })
     .put(function (req, res) {
+
         let sql = 'SELECT * FROM orders WHERE id = (?)'
         let flag = false
+
         new Promise((resolve,reject) => {
             db.get(sql, [req.params.orderId], (err, row) => {
                 flag = row != undefined ? true : false;
@@ -140,7 +144,7 @@ app.route('/order/:orderId?')
         })
         .then(() => {
             if (!flag){
-                return res.status(400).send('Order ID does not exist yet\n');
+                return res.status(400).json({"message":"Order ID does not exist yet"});
             } else {
                 db.serialize(() => {
                     let sql2 = 'UPDATE orders SET status = (?), modified = (?) WHERE id = (?)';
@@ -153,13 +157,13 @@ app.route('/order/:orderId?')
                         let sql4 = 'INSERT INTO order_articles(amount, order_id, article_id, article_status) VALUES(?,?,?,?)';
                         db.run(sql4, [article.amount, req.params.orderId, article.id, req.body.status]);
                     }
-                    return res.send('Order Updated\n');
+                    return res.json({"message":"Order Updated"});
                 })
             }
         })
     })
     .delete(function (req, res) {
-        return res.send('Function not implemented\n');
+        return res.json('Function not implemented\n');
     });
 
 app.route('/article/:articleId?')
@@ -182,7 +186,7 @@ app.route('/article/:articleId?')
             .then(() => {
                 return res.json(article)
             }, () => {
-                return res.status(400).send("This Article ID does not exist\n");
+                return res.status(400).json({"message":"This Article ID does not exist"});
             });
         } else {
             var articles = []
@@ -209,10 +213,11 @@ app.route('/worker/:workerId?')
         if (req.params.workerId != 1 && req.params.workerId != 2) {
             return res.status(400).json({"message":"Worker ID does not exist"});
         }
+
         let articles = [];
         let sql = 'SELECT *,order_articles.id as id FROM order_articles ';
-        sql += 'INNER JOIN orders ON orders.id = order_articles.order_id '
         sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
+        sql += 'INNER JOIN orders ON orders.id = order_articles.order_id ';
         sql += 'WHERE (order_articles.article_status = "IN_PROGRESS" OR order_articles.article_status = (?)) ';
         sql += 'AND (articles.worker = (?) OR articles.worker = "12")'
 
@@ -227,18 +232,24 @@ app.route('/worker/:workerId?')
                 "modified": row.modified
             });
         }, (err, rowCount) => {
-            if (workerArticles.length == 0) {return res.send({"message":"No Order in progress for this worker"});}
-                return res.send(workerArticles);
+            if (workerArticles.length == 0) {return res.json({"message":"No Order in progress for this worker"});}
+                return res.json(workerArticles);
         })
     })
     .put(function (req, res) {/*fix nested functions*/
         db.serialize(() => {
+
             let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
             sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
+
             db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
+
                 let orderId;
                 let newStatus = 400;
-                if (row == undefined) {return res.status(400).json({"message": "Order_article ID not found for this worker"})}
+
+                if (row == undefined) {
+                    return res.status(400).json({"message": "Order_article ID not found for this worker"})
+                }
                 orderId = row.order_id;
                 if (row.article_status == "IN_PROGRESS"){
                     if (row.worker == req.params.workerId){
@@ -252,6 +263,7 @@ app.route('/worker/:workerId?')
                 if (newStatus==400) {return res.status(400).json({"message": "Order_article ID already completed for this worker"});}
 
                 let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
+
                 db.run(sql2, [newStatus, req.body.id], (err) => {
                     let flag = true;
                     let sql3 = 'SELECT * FROM order_articles WHERE order_id = (?)'
