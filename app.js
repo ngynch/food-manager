@@ -11,6 +11,7 @@ const csv = require('csv-parser');
 const fs = require('fs');
 
 db.serialize(() => {
+
     db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, worker INTEGER NOT NULL)');
     db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT NOT NULL)');
     db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, article_status TEXT NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
@@ -26,7 +27,7 @@ db.serialize(() => {
 app.use(cors())
 
 app.use(function (req, res, next) {
-    console.log(`${req.method} ${req.originalUrl} ${Date(Date.now()).slice(0, 24)}`);
+    console.log(`${req.method} ${req.originalUrl} ${Date(Date.now()).slice(0,24)}`);
     next();
 })
 
@@ -37,7 +38,25 @@ app.get('/', function (req, res) {
 app.route('/order/:orderId?')
     .get(function (req, res) {
         if (req.params.orderId!= undefined) {
-            orders.getOrder(db,req.params.orderId)
+            var articles = [];
+            new Promise(function(resolve, reject) {
+                sql = 'SELECT *,articles.name as name,order_articles.id as id FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id LEFT JOIN orders ON orders.id = order_articles.order_id WHERE order_articles.order_id = (?)'
+
+                db.each(sql, [req.params.orderId], function(err, row){
+                    if (err) {console.log("hiereerrr");reject(err);}
+                    articles.push({
+                        "id": row.id,
+                        "status": row.article_status,
+                        "alias": row.alias,
+                        "name": row.name,
+                        "amount": row.amount,
+                        "price": row.price*row.amount
+                    });
+
+                }, (err, rowCount) => {
+                    resolve(articles)
+                });
+            })
             .then((articles) => {
                 if (articles.length == 0) {
                     return res.status(400).json({"message":"OrderID does not exist"});
@@ -62,13 +81,14 @@ app.route('/order/:orderId?')
                 }
             });
         } else {
+
             var list_orders = [];
             new Promise((resolve,reject) => {
 
                 let sql = 'SELECT *,orders.name as ordername,articles.name as articlename FROM orders ';
                 sql +=  'INNER JOIN order_articles ON order_articles.order_id = orders.id ';
                 sql += 'INNER JOIN articles ON articles.id = order_articles.article_id';
-                
+
                 db.each(sql, (err, row) => {
                     let flag = false
                     for(item of list_orders){
@@ -117,8 +137,10 @@ app.route('/order/:orderId?')
     })
     .post(function (req, res) {
           new Promise((resolve, reject) => {
+
               let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone, status) VALUES(?,?,?,?,?,?,?,?,?)'
-              let time = Date(Date.now()).slice(0, 24)
+              let time = Math.round(Date.now());
+
               db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "TO_DO"], function(err) {
                   resolve(this.lastID);
               });
@@ -148,7 +170,7 @@ app.route('/order/:orderId?')
             } else {
                 db.serialize(() => {
                     let sql2 = 'UPDATE orders SET status = (?), modified = (?) WHERE id = (?)';
-                    db.run(sql2,[req.body.status, Date(Date.now()).slice(0, 24), req.params.orderId]);
+                    db.run(sql2,[req.body.status, Math.round(Date.now()), req.params.orderId]);
 
                     let sql3 = 'DELETE FROM order_articles WHERE order_id = (?)';
                     db.run(sql3, req.params.orderId);
@@ -169,7 +191,9 @@ app.route('/order/:orderId?')
 app.route('/article/:articleId?')
     .get(function (req, res) {
         if (!isNaN(req.params.articleId)) {
+
             var article = {}
+
             new Promise((resolve,reject) => {
                 db.each('SELECT * FROM articles WHERE id = (?)',req.params.articleId, (err, row) => {
                     article = {
@@ -189,7 +213,9 @@ app.route('/article/:articleId?')
                 return res.status(400).json({"message":"This Article ID does not exist"});
             });
         } else {
+
             var articles = []
+
             new Promise((resolve, reject) => {
                 db.each('SELECT * FROM articles', (err, row) => {
                     articles.push({
@@ -215,7 +241,7 @@ app.route('/worker/:workerId?')
         }
 
         let articles = [];
-        let sql = 'SELECT *,order_articles.id as id FROM order_articles ';
+        let sql = 'SELECT *,order_articles.id as id,articles.name as name FROM order_articles ';
         sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
         sql += 'INNER JOIN orders ON orders.id = order_articles.order_id ';
         sql += 'WHERE (order_articles.article_status = "IN_PROGRESS" OR order_articles.article_status = (?)) ';
@@ -226,8 +252,10 @@ app.route('/worker/:workerId?')
             workerArticles.push({
                 "id": row.id,
                 "status": row.article_status,
+                "type": row.type,
                 "alias": row.alias,
                 "name": row.name,
+                "amount": row.amount,
                 "created": row.created,
                 "modified": row.modified
             });
