@@ -184,9 +184,6 @@ app.route('/order/:orderId?')
             }
         })
     })
-    .delete(function (req, res) {
-        return res.json('Function not implemented\n');
-    });
 
 app.route('/article/:articleId?')
     .get(function (req, res) {
