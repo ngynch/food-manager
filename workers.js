@@ -1,7 +1,7 @@
 module.exports = {
     getWorkerById:  function(req, db) {
         let articles = [];
-        let sql = 'SELECT *,articles.id as id,articles.name as name FROM order_articles ';
+        let sql = 'SELECT *,order_articles.id as id,articles.name as name FROM order_articles ';
         sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
         sql += 'INNER JOIN orders ON orders.id = order_articles.order_id ';
         sql += 'WHERE (order_articles.article_status = "IN_PROGRESS" OR order_articles.article_status = (?)) ';
@@ -10,21 +10,21 @@ module.exports = {
 
         return new Promise((resolve, reject) => {
             db.each(sql,[-req.params.workerId+3, req.params.workerId], (err, row) => {
-                let index = workerArticles.findIndex(x => x["id"] == row.id);
+                /*let index = workerArticles.findIndex(x => x["id"] == row.id);
                 if (index != -1) {
                     workerArticles[index]["amount"] += row.amount;
-                } else {
-                    workerArticles.push({
-                        "id": row.id,
-                        "status": row.article_status,
-                        "type": row.type,
-                        "alias": row.alias,
-                        "name": row.name,
-                        "amount": row.amount,
-                        "created": row.created,
-                        "modified": row.modified
-                    });
-                }
+                } else {*/
+                workerArticles.push({
+                    "id": row.id,
+                    "status": row.article_status,
+                    "type": row.type,
+                    "alias": row.alias,
+                    "name": row.name,
+                    "amount": row.amount,
+                    "created": row.created,
+                    "modified": row.modified
+                });
+
             }, (err, rowCount) => {
                 resolve(workerArticles);
             })
