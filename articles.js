@@ -1,8 +1,8 @@
 module.exports = {
-    getArticleById: function(req, res, db) {
+    getArticleById: function(req, db) {
         var article = {}
 
-        new Promise((resolve,reject) => {
+        return new Promise((resolve,reject) => {
             db.each('SELECT * FROM articles WHERE id = (?)',req.params.articleId, (err, row) => {
                 article = {
                     "id" : row.id,
@@ -12,20 +12,15 @@ module.exports = {
                 };
             }, (err,rowCount) => {
                 if (rowCount == 0) {reject();}
-                resolve();
+                resolve(article);
             });
         })
-        .then(() => {
-            return res.json(article)
-        }, () => {
-            return res.status(400).json({"message":"This Article ID does not exist"});
-        });
     },
 
-    getArticles: function(res, db) {
-        var articles = []
+    getArticles: function(db) {
+        let articles = []
 
-        new Promise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             db.each('SELECT * FROM articles', (err, row) => {
                 articles.push({
                     "id": row.id,
@@ -34,12 +29,10 @@ module.exports = {
                     "price": row.price
                 })
             }, (err, rowCount) => {
-                resolve();
+                resolve(articles);
             });
         })
-        .then(() => {
-            return res.json(articles);
-        });
+
     },
 
 }

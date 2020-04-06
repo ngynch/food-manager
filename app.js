@@ -14,7 +14,7 @@ const fs = require('fs');
 db.serialize(() => {
 
     db.run('CREATE TABLE articles (id INTEGER PRIMARY KEY AUTOINCREMENT, alias TEXT NOT NULL, name TEXT NOT NULL, price INTEGER NOT NULL, worker INTEGER NOT NULL)');
-    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created TEXT NOT NULL, modified TEXT NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT NOT NULL)');
+    db.run('CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, created INTEGER NOT NULL, modified INTEGER NOT NULL, name TEXT, street TEXT, zipcode TEXT, city TEXT, telephone TEXT, status TEXT NOT NULL)');
     db.run('CREATE TABLE order_articles (id INTEGER PRIMARY KEY AUTOINCREMENT, amount INTEGER NOT NULL, order_id INTEGER NOT NULL, article_id INTEGER NOT NULL, article_status TEXT NOT NULL, FOREIGN KEY (order_id) REFERENCES orders (id), FOREIGN KEY (article_id) REFERENCES articles (id))');
 
     //Speisekarte import
@@ -39,24 +39,62 @@ app.get('/', function (req, res) {
 app.route('/order/:orderId?')
     .get(function (req, res) {
         if (req.params.orderId!= undefined) {
-            orders.getOrderById(req, res, db);
+            orders.getOrderArticlesById(req, db)
+            .then((articles) => {
+                if (articles.length == 0) {
+                    return res.status(400).json({"message":"OrderID does not exist"});
+                } else {
+                    orders.getOrderDetails(req, db)
+                    .then(details => {
+                        details["articles"] = articles;
+                        return res.json(details);
+                    })
+                }
+            });
         } else {
-            orders.getOrders(res, db);
+            orders.getOrders(db)
+            .then((list_orders) => {
+                return res.json(list_orders);
+            });
         }
     })
     .post(function (req, res) {
-        orders.createOrder(req, res, db);
+        orders.createOrder(req, db)
+        .then(() => {
+            return res.json({"message":"Order created"})
+        }, () => {
+            res.status(400).json({"message":"Could not create order"});
+        })
     })
     .put(function (req, res) {
-        orders.updateOrder(req, res, db);
+        orders.orderExist(req, db)
+            .then(() => {
+                    orders.updateOrder(req, db)
+                    .then(() => {
+                        return res.json({"message":"Order updated"});
+                    }, () => {
+                        console.log("Problem with updating order")
+                        res.json("Could not update order")
+                    })
+                },() => {
+                    return res.status(400).json({"messsage":"Order ID does not exists yet"});
+                });
     })
 
 app.route('/article/:articleId?')
     .get(function (req, res) {
         if (!isNaN(req.params.articleId)) {
-            articles.getArticleById(req, res, db);
+            articles.getArticleById(req, db)
+            .then(article => {
+                return res.json(article)
+            }, () => {
+                return res.status(400).json({"message":"This Article ID does not exist"});
+            });
         } else {
-            articles.getArticles(res, db);
+            articles.getArticles(db)
+            .then((articles) => {
+                return res.json(articles);
+            });
         }
     });
 
@@ -65,10 +103,18 @@ app.route('/worker/:workerId?')
         if (req.params.workerId != 1 && req.params.workerId != 2) {
             return res.status(400).json({"message":"Worker ID does not exist"});
         }
-        workers.getWorkerById(req, res, db);
+        workers.getWorkerById(req, db)
+        .then((result) => {
+            return res.json(result)
+        });
     })
     .put(function (req, res) {/*fix nested functions*/
-        workers.updateWorkerById(req, res, db);
+        workers.updateWorkerById(req, db)
+        .then((result) => {
+            return res.json(result);
+        }, (err) => {
+            return res.status(400).json(err);
+        })
     });
 
 app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));

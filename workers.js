@@ -1,5 +1,5 @@
 module.exports = {
-    getWorkerById:  function(req, res, db) {
+    getWorkerById:  function(req, db) {
         let articles = [];
         let sql = 'SELECT *,articles.id as id,articles.name as name FROM order_articles ';
         sql += 'INNER JOIN articles ON order_articles.article_id = articles.id ';
@@ -8,10 +8,9 @@ module.exports = {
         sql += 'AND (articles.worker = (?) OR articles.worker = "12")'
         let workerArticles = [];
 
-        new Promise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             db.each(sql,[-req.params.workerId+3, req.params.workerId], (err, row) => {
                 let index = workerArticles.findIndex(x => x["id"] == row.id);
-                console.log(index)
                 if (index != -1) {
                     workerArticles[index]["amount"] += row.amount;
                 } else {
@@ -30,59 +29,78 @@ module.exports = {
                 resolve(workerArticles);
             })
         })
-        .then((result) => {
-            return res.json(result)
-        });
     },
 
-    updateWorkerById: function(req, res, db) {
-        db.serialize(() => {
+    updateWorkerById: function(req, db) {
+        let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
+        sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
+        let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
+        let sql3 = 'SELECT * FROM order_articles WHERE order_id = (?)'
+        let sql4 = 'UPDATE orders SET status = "COMPLETE" WHERE id = (?)'
+        let orderId;
 
-            let sql1 = 'SELECT * FROM order_articles INNER JOIN articles ON order_articles.article_id = articles.id ';
-            sql1 += 'WHERE (order_articles.id = (?)) AND (articles.worker = (?) OR articles.worker = "12")';
-
+        return new Promise((resolve, reject) => {
             db.get(sql1, [req.body.id,req.params.workerId], (err, row) => {
-
-                let orderId;
-                let newStatus = 400;
-
                 if (row == undefined) {
-                    return res.status(400).json({"message": "Order_article ID not found for this worker"})
+                    return reject({"message": "Order_article ID not found for this worker"});
                 }
                 orderId = row.order_id;
                 if (row.article_status == "IN_PROGRESS"){
                     if (row.worker == req.params.workerId){
-                        newStatus = "COMPLETE"
+                        resolve("COMPLETE");
                     } else {
-                        newStatus = req.params.workerId;
+                        resolve(req.params.workerId);
                     }
                 } else if ((row.article_status == "1" && req.params.workerId == "2") || (row.article_status == "2" && req.params.workerId == "1")){
-                    newStatus = "COMPLETE";
+                    resolve("COMPLETE");
+                } else {
+                    reject({"message":"Worker already completed this article. Status: " + row.article_status});
                 }
-                if (newStatus==400) {return res.status(400).json({"message": "Order_article ID already completed for this worker"});}
-
-                let sql2 = 'UPDATE order_articles SET article_status = (?) WHERE id = (?)';
-
+            })
+        })
+        .then((newStatus) => {
+            return new Promise((resolve, reject) => {
                 db.run(sql2, [newStatus, req.body.id], (err) => {
-                    let flag = true;
-                    let sql3 = 'SELECT * FROM order_articles WHERE order_id = (?)'
-                    db.each(sql3, orderId, (err, row) => {
-                        if (row.article_status != "COMPLETE") {
-                            flag = false;
-                            return;
-                        }
-                    }, (err, rowCount) => {
-                        if (flag){
-                            let sql4 = 'UPDATE orders SET status = "COMPLETE" WHERE id = (?)'
-                            db.run(sql4, orderId, (err) => {
-                                return res.json({"message": "Order Updated and Completed"})
-                            })
-                        } else {
-                            return res.json({"message": "Order Updated"});
-                        }
-                    })
+                    if (err) {return reject(err);}
+                    resolve();
                 });
+            })
+        }, (err) => {
+            return new Promise((resolve, reject) => {
+                reject(err);
             });
         })
+        .then(() => {// check if order finished
+            return new Promise((resolve, reject) => {
+                let flag = true;
+                db.each(sql3, orderId, (err, row) => {
+                    if (row.article_status != "COMPLETE") {
+                        flag = false;
+                    }
+                }, (err, rowCount) => {
+                    if (flag){
+                        resolve(true);
+                    } else {
+                        resolve(false);
+                    }
+                });
+            });
+        }, (err) => {
+            return new Promise((resolve, reject) => {
+                reject(err);
+            });
+        })
+        .then((flag) => {
+            return new Promise((resolve, reject) => {
+                if (!flag) { return resolve({"message": "Order Updated"});}
+                db.run(sql4, orderId, (err) => {
+                    resolve({"message": "Order Updated and Completed"})
+                });
+            })
+        }, (err) => {
+        return new Promise((resolve, reject) => {
+            reject(err);
+        });
+        });
     }
 }
