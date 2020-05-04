@@ -97,7 +97,7 @@ module.exports = {
             let sql = 'INSERT INTO orders(type, created, modified, name, street, zipcode, city, telephone, status) VALUES(?,?,?,?,?,?,?,?,?)'
             let time = Date.now();
 
-            db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "TO_DO"], function(err) {
+            db.run(sql, [req.body.type, time, time, req.body.name, req.body.street, req.body.zipcode, req.body.city, req.body.telephone, "IN_PROGRESS"], function(err) {
                 resolve(this.lastID);
             });
         })
