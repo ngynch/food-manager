@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const app = express();
-const port = 3000;
 app.use(express.json());
 const sqlite3 =  require('sqlite3').verbose();
 const db = new sqlite3.Database(':memory:');
@@ -116,6 +115,4 @@ app.route('/worker/:workerId?')
             return res.status(400).json(err);
         })
     });
-
-app.listen(port, () => console.log(`Food Manager listening on port ${port}!`));
-//db.close();
+module.exports = app;

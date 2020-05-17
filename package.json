@@ -1,10 +1,16 @@
 {
+    "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+        "/node_modules/"
+    ]
+ },
   "name": "food-manager",
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "jest"
   },
   "author": "",
   "license": "ISC",
@@ -20,6 +26,9 @@
     "sqlite3": "^4.1.1",
     "xlsx": "^0.15.5"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "jest": "^26.0.1",
+    "supertest": "^4.0.2"
+  },
   "description": ""
 }
