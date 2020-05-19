@@ -3,13 +3,17 @@
     "testEnvironment": "node",
     "coveragePathIgnorePatterns": [
         "/node_modules/"
-    ]
+    ],
+    "moduleDirectories": [
+        "node_modules",
+        "src"
+     ]
  },
   "name": "food-manager",
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node src/server.js",
     "test": "jest"
   },
   "author": "",
