@@ -43,6 +43,6 @@ If you need to update `npm`, you can make it using `npm`! Cool right? After runn
 After starting the backend server you can follow the instruction on https://github.com/duybach/food-manager-gui to start the webapplication.
 It will look like this:
 
-![GitHub Logo](/images/food-manager.png)
+![](/images/foodmanager.png)
 Format: ![Alt Text](url)
 
