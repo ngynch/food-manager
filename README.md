@@ -3,7 +3,7 @@ Backend of food-manager web application
 ---
 ## Requirements
 
-For development, you will only need Node.js and a node global package, Yarn, installed in your environement.
+For development, you will only need Node.js installed in your environement.
 
 ### Node
 - #### Node installation on Windows
@@ -24,10 +24,9 @@ Also, be sure to have `git` available in your PATH, `npm` might need it (You can
 If the installation was successful, you should be able to run the following command.
 
     $ node --version
-    v8.11.3
-
+    v12.13.1
     $ npm --version
-    6.1.0
+    6.12.1
 
 If you need to update `npm`, you can make it using `npm`! Cool right? After running the following command, just open again the command line and be happy.
 
@@ -40,7 +39,8 @@ If you need to update `npm`, you can make it using `npm`! Cool right? After runn
 ## Running the project
 
     $ npm start
-
+    Food Manager listening on port 3000!
+After starting the backend server you can follow the instruction on https://github.com/duybach/food-manager-gui to start the webapplication.
 ## Testing the project
 
     $ npm test
