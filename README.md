@@ -42,5 +42,5 @@ If you need to update `npm`, you can make it using `npm`! Cool right? After runn
 
     $ npm start
     Food Manager listening on port 3000!
-After starting the backend server you can follow the instruction on https://github.com/duybach/food-manager-gui to start the webapplication.
+After starting the backend server you can follow the instruction on https://github.com/duybach/food-manager-gui to start the web application.
 
